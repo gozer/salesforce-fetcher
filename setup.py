@@ -11,6 +11,11 @@ setup(
         'pyOpenSSL>=0.14',
         'pyyaml>=3.12'
     ],
+    data_files = [('salesforce-fetcher/queries',[
+      'queries/contacts.soql',
+      'queries/foundation_signups.soql',
+      'queries/petition_signups.soql',
+    ])],
     author='Aaron Wirick',
     author_email='awirick@mozilla.com',
     description='Python tool for fetching bulk queries and reports from Salesforce',
