@@ -1,0 +1,4 @@
+Click
+simple-salesforce
+pyOpenSSL>=0.14
+pyyaml>=3.12

@@ -1,0 +1,3 @@
+SELECT ContactId, Member_First_Associated_Date__c
+FROM CampaignMember
+WHERE Campaign.Type='Petition'

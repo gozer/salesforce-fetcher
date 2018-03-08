@@ -1,0 +1,7 @@
+SELECT Id, CreatedDate
+FROM Contact
+WHERE Sub_Mozilla_Foundation__c = True
+AND Subscriber__c = True
+AND Double_Opt_In__c = True
+AND HasOptedOutOfEmail = False
+AND Unengaged__c = False
