@@ -24,5 +24,6 @@ Sub_View_Source_Global__c,
 Sub_View_Source_NAmerica__c,
 Double_Opt_In__c,
 Unengaged__c,
-HasOptedOutOfEmail
+HasOptedOutOfEmail,
+MailingCountry
 FROM Contact
