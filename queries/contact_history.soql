@@ -1,0 +1,1 @@
+SELECT Field, ContactId, CreatedDate, NewValue, OldValue FROM ContactHistory WHERE CreatedDate = YESTERDAY
