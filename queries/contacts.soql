@@ -1,9 +1,7 @@
 SELECT
 Id,
 CreatedDate,
-Email,
 Email_Format__c,
-Name,
 Email_Language__c,
 Signup_Source_URL__c,
 Confirmation_MITI_Subscriber__c,
@@ -25,5 +23,10 @@ Sub_View_Source_NAmerica__c,
 Double_Opt_In__c,
 Unengaged__c,
 HasOptedOutOfEmail,
-MailingCountry
+MailingCountry,
+Sub_Common_Voice__c,
+Sub_Hubs__c,
+Sub_Mixed_Reality__c,
+Sub_Mozilla_Tech__c,
+AMO_Email_Opt_In__c
 FROM Contact
