@@ -15,7 +15,7 @@ from simple_salesforce import Salesforce
 @click.option('--config-file', envvar='SFDC_CONFIG_FILE', type=click.Path(exists=True, dir_okay=False),
               default="settings.yml", help="Path to a configuration YAML file")
 @click.option('--fetch-only', envvar='SFDC_FETCH_ONLY')
-def run(config_file):
+def run(config_file, fetch_only):
     """
     Main Entry Point for the utility, will provide a CLI friendly version of this application
     """
@@ -48,7 +48,8 @@ class SalesforceFetcher(object):
         logger.addHandler(ch)
 
         logger.debug("Logging is set to DEBUG level")
-        logger.debug("Settings: %s" % self.settings)
+        # let's not output the password
+        #logger.debug("Settings: %s" % self.settings)
 
         self.logger = logger
         self.salesforce = Salesforce(**self.settings['salesforce']['auth'])
