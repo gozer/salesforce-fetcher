@@ -14,12 +14,13 @@ from simple_salesforce import Salesforce
 @click.command()
 @click.option('--config-file', envvar='SFDC_CONFIG_FILE', type=click.Path(exists=True, dir_okay=False),
               default="settings.yml", help="Path to a configuration YAML file")
+@click.option('--fetch-only', envvar='SFDC_FETCH_ONLY')
 def run(config_file):
     """
     Main Entry Point for the utility, will provide a CLI friendly version of this application
     """
     fetcher = SalesforceFetcher(config_file)
-    fetcher.fetch_all()
+    fetcher.fetch_all(fetch_only)
 
 
 class SalesforceFetcher(object):
@@ -57,16 +58,22 @@ class SalesforceFetcher(object):
         if not os.path.exists(output_directory):
             os.makedirs(output_directory)
 
-    def fetch_all(self):
+    def fetch_all(self, fetch_only):
         """
         Fetch any reports or queries, writing them out as files in the output_dir
         """
         queries = self.load_queries()
         for name, query in queries.items():
+            if fetch_only and name != fetch_only:
+              self.logger.info("'--fetch-only %s' specified. Skipping fetch of %s" % (fetch_only,name))
+              continue
             self.fetch_soql_query(name, query)
 
         reports = self.settings['salesforce']['reports']
         for name, report_url in reports.items():
+            if fetch_only and name != fetch_only:
+              self.logger.info("'--fetch-only %s' specified. Skipping fetch of %s" % (fetch_only,name))
+              continue
             self.fetch_report(name, report_url)
 
         self.logger.info("Job Completed")
