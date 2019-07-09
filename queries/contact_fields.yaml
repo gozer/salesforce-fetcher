@@ -39,28 +39,34 @@ fields:
 - Sub_View_Source_Global__c
 - Sub_View_Source_NAmerica__c
 buckets:
-- Firefox:
+- name: Firefox
+  lists:
   - Sub_Firefox_And_You__c
-- Firefox Account:
+- name: Firefox Account
+  lists:
   - Sub_Firefox_Accounts_Journey__c
   - Sub_Knowledge_is_Power__c
   - Sub_Test_Pilot__c
   - Sub_Take_Action_for_Internet__c
-- Mozilla:
+- name: Mozilla
+  lists:
   - Sub_Mozilla_Foundation__c
   - Sub_Mozilla_Festival__c
   - Sub_Internet_Health_Report__c
   - Interest_Open_Leadership__c
-- Other:
+- name: Other
+  lists:
   - AMO_Email_Opt_In__c
   - Sub_About_Mozilla__c
   - Sub_Mozillians__c
   - Sub_Mozillians_NDA__c
   - Sub_Fellowship_and_Awardee__c
-- Mozilla Labs:
+- name: Mozilla Labs
+  lists:
   - Sub_Common_Voice__c
   - Sub_Hubs__c
   - Sub_Mixed_Reality__c
   - Sub_Mozilla_Tech__c
-- Developer:
+- name: Developer
+  lists:
   - Sub_Apps_And_Hacks__c
