@@ -164,6 +164,26 @@ class SalesforceFetcher(object):
         self.logger.info("Writing output to %s" % file_path)
         return file_path
 
+    def create_contacts_query(query_dir):
+        """
+        The intention is to have Travis upload the "contact_fields.yaml" file
+        to a bucket where it can be pulled down dynamically by this script
+        and others (instead of having to rebuild the image on each change)
+        """
+
+        query = ''
+        fields_file = os.path.join(query_dir, 'contact_fields.yaml')
+        with open(fields_file, 'r') as stream:
+            contact_fields = yaml.safe_load(stream)
+
+        query = "SELECT "
+        for field in contact_fields['fields']:
+            query += field + ', '
+
+        query = query[:-2] + " FROM Contact"
+  
+        return query
+
     def load_queries(self):
         """
         load queries from an external directory
@@ -173,7 +193,9 @@ class SalesforceFetcher(object):
 
         query_dir = self.settings['salesforce']['query_dir']
         for file in os.listdir(query_dir):
-            if file.endswith(".soql"):
+            if file == 'contacts.soql':
+              queries['contacts'] = create_contacts_query(query_dir)
+            elif file.endswith(".soql"):
                 name, ext = os.path.splitext(file)
                 query_file = os.path.join(query_dir, file)
                 with open(query_file, 'r') as f:
