@@ -194,7 +194,7 @@ class SalesforceFetcher(object):
         query_dir = self.settings['salesforce']['query_dir']
         for file in os.listdir(query_dir):
             if file == 'contacts.soql':
-              queries['contacts'] = create_contacts_query(query_dir)
+              queries['contacts'] = self.create_contacts_query(query_dir)
             elif file.endswith(".soql"):
                 name, ext = os.path.splitext(file)
                 query_file = os.path.join(query_dir, file)
