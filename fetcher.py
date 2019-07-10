@@ -121,6 +121,7 @@ class SalesforceFetcher(object):
 
     def fetch_soql_query(self, name, query):
         self.logger.info("Executing %s" % name)
+        self.logger.info("Query is: %s" % query)
         path = self.create_output_path(name)
         result = self.salesforce.query(query)
         self.logger.info("First result set received")
