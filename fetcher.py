@@ -164,7 +164,7 @@ class SalesforceFetcher(object):
         self.logger.info("Writing output to %s" % file_path)
         return file_path
 
-    def create_contacts_query(query_dir):
+    def create_contacts_query(self, query_dir):
         """
         The intention is to have Travis upload the "contact_fields.yaml" file
         to a bucket where it can be pulled down dynamically by this script
