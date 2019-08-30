@@ -1,4 +1,5 @@
-Click
-simple-salesforce
+Click==7.0
+simple-salesforce==0.74.3
 pyOpenSSL>=0.14
 pyyaml>=3.12
+pytz==2019.2
