@@ -14,6 +14,7 @@ setup(
     data_files = [('salesforce-fetcher/queries',[
       'queries/contact_history.soql',
       'queries/contacts.soql',
+      'queries/contact_updates.soql',
       'queries/contact_fields.yaml',
       'queries/foundation_signups.soql',
       'queries/petition_signups.soql',
