@@ -3,6 +3,8 @@
 import logging
 import os
 import time
+import pytz
+import datetime
 from csv import DictWriter, QUOTE_ALL
 
 import click
@@ -77,7 +79,30 @@ class SalesforceFetcher(object):
               continue
             self.fetch_report(name, report_url)
 
+        if fetch_only:
+            if fetch_only == 'contact_deletes':
+                self.fetch_contact_deletes(days=3)
+        else:
+            self.fetch_contact_deletes(days=3)
+
         self.logger.info("Job Completed")
+
+    def fetch_contact_deletes(self, days=3):
+        """
+        Fetches all deletes from Contact for X days
+        :param days: Fetch deletes from this number of days to present
+        :return:
+        """
+        path = self.create_output_path('contact_deletes')
+        end = datetime.datetime.now(pytz.UTC)  # we need to use UTC as salesforce API requires this!
+        records = self.salesforce.Contact.deleted(end - datetime.timedelta(days=days), end)
+        data_list = records['deletedRecords']
+        fieldnames = list(data_list[0].keys())
+        with open(path, 'w') as f:
+            writer = DictWriter(f, fieldnames=fieldnames, quoting=QUOTE_ALL)
+            writer.writeheader()
+            for delta_record in data_list:
+                writer.writerow(delta_record)
 
     def fetch_report(self, name, report_url):
         """
@@ -165,7 +190,7 @@ class SalesforceFetcher(object):
         self.logger.info("Writing output to %s" % file_path)
         return file_path
 
-    def create_contacts_query(self, query_dir):
+    def create_contacts_query(self, query_dir, updates_only=False):
         """
         The intention is to have Travis upload the "contact_fields.yaml" file
         to a bucket where it can be pulled down dynamically by this script
@@ -182,6 +207,8 @@ class SalesforceFetcher(object):
             query += field + ', '
 
         query = query[:-2] + " FROM Contact"
+        if updates_only:
+            query += " WHERE LastModifiedDate >= LAST_N_DAYS:3"
   
         return query
 
@@ -196,6 +223,8 @@ class SalesforceFetcher(object):
         for file in os.listdir(query_dir):
             if file == 'contacts.soql':
               queries['contacts'] = self.create_contacts_query(query_dir)
+            elif file == 'contact_updates.soql':
+              queries['contact_updates'] = self.create_contacts_query(query_dir, updates_only=True)
             elif file.endswith(".soql"):
                 name, ext = os.path.splitext(file)
                 query_file = os.path.join(query_dir, file)
