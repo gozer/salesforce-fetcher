@@ -82,40 +82,10 @@ class SalesforceFetcher(object):
         if fetch_only:
             if fetch_only == 'contact_deletes':
                 self.fetch_contact_deletes(days=2)
-            #elif fetch_only == 'contact_updates':
-                #self.fetch_contact_updates(days=2)
         else:
             self.fetch_contact_deletes(days=2)
-            #self.fetch_contact_updates(days=2)
 
         self.logger.info("Job Completed")
-
-    def fetch_contact_updates(self, days=2):
-        """
-        Fetches all updates from Contact for X days
-        :param days: Fetch updates from this number of days to present
-        :return:
-        """
-        path = self.create_output_path('contact_updates')
-        end = datetime.datetime.now(pytz.UTC)  # we need to use UTC as salesforce API requires this!
-        records = self.salesforce.Contact.updated(end - datetime.timedelta(days=days), end)
-        updates = []
-        print("There are %s updates" % len(records['ids']))
-        i = 0
-        for id in records['ids']:
-            i += 1
-            if i % 10 == 0:
-              print(i)
-            contact = self.salesforce.Contact.get(id)
-            #print(contact)
-            updates.append(contact['attributes'])
-            #return
-        fieldnames = list(updates[0].keys())
-        with open(path, 'w') as f:
-            writer = DictWriter(f, fieldnames=fieldnames, quoting=QUOTE_ALL)
-            writer.writeheader()
-            for delta_record in updates:
-                writer.writerow(delta_record)
 
     def fetch_contact_deletes(self, days=2):
         """
