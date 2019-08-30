@@ -1,6 +1,7 @@
 ---
 fields:
 - Id
+- Email
 - CreatedDate
 - Email_Format__c
 - Email_Language__c
