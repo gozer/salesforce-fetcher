@@ -3,6 +3,8 @@
 import logging
 import os
 import time
+import pytz
+import datetime
 from csv import DictWriter, QUOTE_ALL
 
 import click
@@ -77,7 +79,60 @@ class SalesforceFetcher(object):
               continue
             self.fetch_report(name, report_url)
 
+        if fetch_only:
+            if fetch_only == 'contact_deletes':
+                self.fetch_contact_deletes(days=2)
+            #elif fetch_only == 'contact_updates':
+                #self.fetch_contact_updates(days=2)
+        else:
+            self.fetch_contact_deletes(days=2)
+            #self.fetch_contact_updates(days=2)
+
         self.logger.info("Job Completed")
+
+    def fetch_contact_updates(self, days=2):
+        """
+        Fetches all updates from Contact for X days
+        :param days: Fetch updates from this number of days to present
+        :return:
+        """
+        path = self.create_output_path('contact_updates')
+        end = datetime.datetime.now(pytz.UTC)  # we need to use UTC as salesforce API requires this!
+        records = self.salesforce.Contact.updated(end - datetime.timedelta(days=days), end)
+        updates = []
+        print("There are %s updates" % len(records['ids']))
+        i = 0
+        for id in records['ids']:
+            i += 1
+            if i % 10 == 0:
+              print(i)
+            contact = self.salesforce.Contact.get(id)
+            #print(contact)
+            updates.append(contact['attributes'])
+            #return
+        fieldnames = list(updates[0].keys())
+        with open(path, 'w') as f:
+            writer = DictWriter(f, fieldnames=fieldnames, quoting=QUOTE_ALL)
+            writer.writeheader()
+            for delta_record in updates:
+                writer.writerow(delta_record)
+
+    def fetch_contact_deletes(self, days=2):
+        """
+        Fetches all deletes from Contact for X days
+        :param days: Fetch deletes from this number of days to present
+        :return:
+        """
+        path = self.create_output_path('contact_deletes')
+        end = datetime.datetime.now(pytz.UTC)  # we need to use UTC as salesforce API requires this!
+        records = self.salesforce.Contact.deleted(end - datetime.timedelta(days=days), end)
+        data_list = records['deletedRecords']
+        fieldnames = list(data_list[0].keys())
+        with open(path, 'w') as f:
+            writer = DictWriter(f, fieldnames=fieldnames, quoting=QUOTE_ALL)
+            writer.writeheader()
+            for delta_record in data_list:
+                writer.writerow(delta_record)
 
     def fetch_report(self, name, report_url):
         """
@@ -185,6 +240,26 @@ class SalesforceFetcher(object):
   
         return query
 
+    def create_contact_updates_query(self, query_dir):
+        """
+        The intention is to have Travis upload the "contact_fields.yaml" file
+        to a bucket where it can be pulled down dynamically by this script
+        and others (instead of having to rebuild the image on each change)
+        """
+
+        query = ''
+        fields_file = os.path.join(query_dir, 'contact_fields.yaml')
+        with open(fields_file, 'r') as stream:
+            contact_fields = yaml.safe_load(stream)
+
+        query = "SELECT "
+        for field in contact_fields['fields']:
+            query += field + ', '
+
+        query = query[:-2] + " FROM Contact WHERE LastModifiedDate >= LAST_N_DAYS:3"
+  
+        return query
+
     def load_queries(self):
         """
         load queries from an external directory
@@ -196,6 +271,8 @@ class SalesforceFetcher(object):
         for file in os.listdir(query_dir):
             if file == 'contacts.soql':
               queries['contacts'] = self.create_contacts_query(query_dir)
+            elif file == 'contact_updates.soql':
+              queries['contact_updates'] = self.create_contact_updates_query(query_dir)
             elif file.endswith(".soql"):
                 name, ext = os.path.splitext(file)
                 query_file = os.path.join(query_dir, file)
