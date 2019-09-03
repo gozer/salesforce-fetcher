@@ -97,12 +97,13 @@ class SalesforceFetcher(object):
         end = datetime.datetime.now(pytz.UTC)  # we need to use UTC as salesforce API requires this!
         records = self.salesforce.Contact.deleted(end - datetime.timedelta(days=days), end)
         data_list = records['deletedRecords']
-        fieldnames = list(data_list[0].keys())
-        with open(path, 'w') as f:
-            writer = DictWriter(f, fieldnames=fieldnames, quoting=QUOTE_ALL)
-            writer.writeheader()
-            for delta_record in data_list:
-                writer.writerow(delta_record)
+        if len(data_list) > 0:
+            fieldnames = list(data_list[0].keys())
+            with open(path, 'w') as f:
+                writer = DictWriter(f, fieldnames=fieldnames, quoting=QUOTE_ALL)
+                writer.writeheader()
+                for delta_record in data_list:
+                    writer.writerow(delta_record)
 
     def fetch_report(self, name, report_url):
         """
