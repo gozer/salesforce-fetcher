@@ -81,13 +81,13 @@ class SalesforceFetcher(object):
 
         if fetch_only:
             if fetch_only == 'contact_deletes':
-                self.fetch_contact_deletes(days=3)
+                self.fetch_contact_deletes(days=7)
         else:
-            self.fetch_contact_deletes(days=3)
+            self.fetch_contact_deletes(days=7)
 
         self.logger.info("Job Completed")
 
-    def fetch_contact_deletes(self, days=3):
+    def fetch_contact_deletes(self, days=7):
         """
         Fetches all deletes from Contact for X days
         :param days: Fetch deletes from this number of days to present
