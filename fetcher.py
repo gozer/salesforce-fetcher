@@ -209,7 +209,7 @@ class SalesforceFetcher(object):
 
         query = query[:-2] + " FROM Contact"
         if updates_only:
-            query += " WHERE LastModifiedDate >= LAST_N_DAYS:3"
+            query += " WHERE LastModifiedDate >= LAST_N_DAYS:1"
   
         return query
 
