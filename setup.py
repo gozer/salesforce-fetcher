@@ -19,7 +19,7 @@ setup(
       'queries/contact_updates.soql',
       'queries/contact_fields.yaml',
       'queries/foundation_signups.soql',
-      'queries/opportunity.yaml',
+      'queries/opportunity.soql',
       'queries/opportunity_fields.yaml',
       'queries/petition_signups.soql',
     ])],
