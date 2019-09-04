@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import collections
+import json
 import logging
 import os
 import time
@@ -165,7 +167,13 @@ class SalesforceFetcher(object):
                     for row in result['records']:
                         # each row has a strange attributes key we don't want
                         row.pop('attributes', None)
-                        writer.writerow(row)
+                        out_dict = {}
+                        for key, value in row.items():
+                            if type(value) is collections.OrderedDict:
+                                out_dict[key] = json.dumps(value)
+                            else:
+                                out_dict[key] = value
+                        writer.writerow(out_dict)
                         count += 1
                         if count % 100000 == 0:
                             self.logger.debug("%s rows fetched" % count)
@@ -191,23 +199,23 @@ class SalesforceFetcher(object):
         self.logger.info("Writing output to %s" % file_path)
         return file_path
 
-    def create_contacts_query(self, query_dir, updates_only=False):
+    def create_custom_query(self, table_name='Contact', dir='/usr/local/salesforce_fetcher/queries', updates_only=False):
         """
         The intention is to have Travis upload the "contact_fields.yaml" file
         to a bucket where it can be pulled down dynamically by this script
         and others (instead of having to rebuild the image on each change)
         """
 
-        query = ''
-        fields_file = os.path.join(query_dir, 'contact_fields.yaml')
+        fields_file_name = table_name.lower() + '_fields.yaml'
+        fields_file = os.path.join(dir, fields_file_name)
         with open(fields_file, 'r') as stream:
-            contact_fields = yaml.safe_load(stream)
+            columns = yaml.safe_load(stream)
 
         query = "SELECT "
-        for field in contact_fields['fields']:
+        for field in columns['fields']:
             query += field + ', '
 
-        query = query[:-2] + " FROM Contact"
+        query = query[:-2] + " FROM " + table_name
         if updates_only:
             query += " WHERE LastModifiedDate >= LAST_N_DAYS:1"
   
@@ -223,9 +231,15 @@ class SalesforceFetcher(object):
         query_dir = self.settings['salesforce']['query_dir']
         for file in os.listdir(query_dir):
             if file == 'contacts.soql':
-              queries['contacts'] = self.create_contacts_query(query_dir)
+              queries['contacts'] = self.create_custom_query(table_name='Contact',
+                                                             dir=query_dir)
             elif file == 'contact_updates.soql':
-              queries['contact_updates'] = self.create_contacts_query(query_dir, updates_only=True)
+              queries['contact_updates'] = self.create_custom_query(table_name='Contact',
+                                                                    dir=query_dir,
+                                                                    updates_only=True)
+            elif file == 'opportunity.soql':
+              queries['opportunity'] = self.create_custom_query(table_name='Opportunity',
+                                                                dir=query_dir)
             elif file.endswith(".soql"):
                 name, ext = os.path.splitext(file)
                 query_file = os.path.join(query_dir, file)

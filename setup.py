@@ -9,7 +9,9 @@ setup(
         'Click',
         'simple-salesforce',
         'pyOpenSSL>=0.14',
-        'pyyaml>=3.12'
+        'pyyaml>=3.12',
+        'pyjson==1.3.0',
+        'pytz==2019.2',
     ],
     data_files = [('salesforce-fetcher/queries',[
       'queries/contact_history.soql',
@@ -17,6 +19,8 @@ setup(
       'queries/contact_updates.soql',
       'queries/contact_fields.yaml',
       'queries/foundation_signups.soql',
+      'queries/opportunity.yaml',
+      'queries/opportunity_fields.yaml',
       'queries/petition_signups.soql',
     ])],
     author='Aaron Wirick',
