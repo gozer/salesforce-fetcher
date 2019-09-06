@@ -24,12 +24,13 @@ except ImportError:
 @click.option('--config-file', envvar='SFDC_CONFIG_FILE', type=click.Path(exists=True, dir_okay=False),
               default="settings.yml", help="Path to a configuration YAML file")
 @click.option('--fetch-only', envvar='SFDC_FETCH_ONLY')
-def run(config_file, fetch_only):
+@click.option('--airflow-date', envvar='SFDC_AIRFLOW_DATE')
+def run(config_file, fetch_only, airflow_date):
     """
     Main Entry Point for the utility, will provide a CLI friendly version of this application
     """
     fetcher = SalesforceFetcher(config_file)
-    fetcher.fetch_all(fetch_only)
+    fetcher.fetch_all(fetch_only, airflow_date)
 
 
 class SalesforceFetcher(object):
@@ -69,7 +70,7 @@ class SalesforceFetcher(object):
         if not os.path.exists(output_directory):
             os.makedirs(output_directory)
 
-    def fetch_all(self, fetch_only):
+    def fetch_all(self, fetch_only, airflow_date):
         """
         Fetch any reports or queries, writing them out as files in the output_dir
         """
@@ -80,32 +81,32 @@ class SalesforceFetcher(object):
               continue
             #if name == 'contacts' or name == 'contact_updates':
             if name == 'contacts':
-                self.fetch_soql_query_bulk(name, query)
+                self.fetch_soql_query_bulk(name, query, airflow_date)
             else:
-                self.fetch_soql_query(name, query)
+                self.fetch_soql_query(name, query, airflow_date)
 
         reports = self.settings['salesforce']['reports']
         for name, report_url in reports.items():
             if fetch_only and name != fetch_only:
               self.logger.info("'--fetch-only %s' specified. Skipping fetch of %s" % (fetch_only,name))
               continue
-            self.fetch_report(name, report_url)
+            self.fetch_report(name, report_url, airflow_date)
 
         if fetch_only:
             if fetch_only == 'contact_deletes':
-                self.fetch_contact_deletes(days=7)
+                self.fetch_contact_deletes(days=7, airflow_date=airflow_date)
         else:
-            self.fetch_contact_deletes(days=7)
+            self.fetch_contact_deletes(days=7, airflow_date=airflow_date)
 
         self.logger.info("Job Completed")
 
-    def fetch_contact_deletes(self, days=7):
+    def fetch_contact_deletes(self, days=7, airflow_date=None):
         """
         Fetches all deletes from Contact for X days
         :param days: Fetch deletes from this number of days to present
         :return:
         """
-        path = self.create_output_path('contact_deletes')
+        path = self.create_output_path('contact_deletes', airflow_date=airflow_date)
         end = datetime.datetime.now(pytz.UTC)  # we need to use UTC as salesforce API requires this!
         records = self.salesforce.Contact.deleted(end - datetime.timedelta(days=days), end)
         data_list = records['deletedRecords']
@@ -117,7 +118,7 @@ class SalesforceFetcher(object):
                 for delta_record in data_list:
                     writer.writerow(delta_record)
 
-    def fetch_report(self, name, report_url):
+    def fetch_report(self, name, report_url, airflow_date=None):
         """
         Fetches a single prebuilt Salesforce report via an HTTP request
         :param name: Name of the report to fetch
@@ -134,7 +135,7 @@ class SalesforceFetcher(object):
                             cookies={'sid': self.salesforce.session_id},
                             stream=True)
 
-        path = self.create_output_path(name)
+        path = self.create_output_path(name, airflow_date=airflow_date)
         with open(path, 'w+') as f:
             # Write the full contents
             f.write(resp.text.replace("\"", ""))
@@ -169,10 +170,10 @@ class SalesforceFetcher(object):
             if chunk:
                 f.write( chunk )
 
-    def fetch_soql_query_bulk(self, name, query):
+    def fetch_soql_query_bulk(self, name, query, airflow_date=None):
         self.logger.info("BULK Executing %s" % name)
         self.logger.info("BULK Query is: %s" % query)
-        #path = self.create_output_path(name)
+        #path = self.create_output_path(name, airflow_date=airflow_date)
         if name == 'contacts' or name == 'contact_updates':
             table_name = 'Contact'
         job = self.salesforce_bulk.create_query_job(table_name,
@@ -227,7 +228,7 @@ class SalesforceFetcher(object):
     
                     for result_id in self.salesforce_bulk.get_query_batch_result_ids(batch_info['id'], job_id=job):
                         self.logger.debug("result_id: %s" % result_id)
-                        path = self.create_output_path(name, result_id)
+                        path = self.create_output_path(name, result_id, airflow_date=airflow_date)
                         with open(path, 'wb') as f:
                             self.get_and_write_bulk_results(batch_info['id'], result_id, job, f)
 
@@ -255,10 +256,10 @@ class SalesforceFetcher(object):
         self.salesforce_bulk.close_job(job)
 
 
-    def fetch_soql_query(self, name, query):
+    def fetch_soql_query(self, name, query, airflow_date=None):
         self.logger.info("Executing %s" % name)
         self.logger.info("Query is: %s" % query)
-        path = self.create_output_path(name)
+        path = self.create_output_path(name, airflow_date=airflow_date)
         result = self.salesforce.query(query)
         self.logger.info("First result set received")
         batch = 0
@@ -295,9 +296,12 @@ class SalesforceFetcher(object):
         else:
             self.logger.warn("No results returned for %s" % name)
 
-    def create_output_path(self, name, filename='output'):
+    def create_output_path(self, name, filename='output', airflow_date=None):
         output_dir = self.settings['output_dir']
-        date = time.strftime("%Y-%m-%d")
+        if airflow_date:
+            date = airflow_date
+        else:
+            date = time.strftime("%Y-%m-%d")
         child_dir = os.path.join(output_dir, name, date)
         if not os.path.exists(child_dir):
             os.makedirs(child_dir)
