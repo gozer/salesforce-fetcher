@@ -8,6 +8,7 @@ setup(
     install_requires=[
         'Click',
         'simple-salesforce',
+        'salesforce-bulk',
         'pyOpenSSL>=0.14',
         'pyyaml>=3.12',
         'pyjson==1.3.0',
