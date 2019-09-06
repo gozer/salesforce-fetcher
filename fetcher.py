@@ -316,6 +316,8 @@ class SalesforceFetcher(object):
 
         fields_file_name = table_name.lower() + '_fields.yaml'
         fields_file = os.path.join(dir, fields_file_name)
+        if not os.path.exists(fields_file):
+            return
         with open(fields_file, 'r') as stream:
             columns = yaml.safe_load(stream)
 
