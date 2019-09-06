@@ -13,7 +13,12 @@ import click
 import requests
 import yaml
 from simple_salesforce import Salesforce
+from salesforce_bulk import SalesforceBulk
 
+try:
+    import urlparse
+except ImportError:
+    import urllib.parse as urlparse
 
 @click.command()
 @click.option('--config-file', envvar='SFDC_CONFIG_FILE', type=click.Path(exists=True, dir_okay=False),
@@ -57,6 +62,7 @@ class SalesforceFetcher(object):
 
         self.logger = logger
         self.salesforce = Salesforce(**self.settings['salesforce']['auth'])
+        self.salesforce_bulk = SalesforceBulk(**self.settings['salesforce']['auth'], API_version='46.0')
 
         # Make sure output dir is created
         output_directory = self.settings['output_dir']
@@ -72,7 +78,11 @@ class SalesforceFetcher(object):
             if fetch_only and name != fetch_only:
               self.logger.info("'--fetch-only %s' specified. Skipping fetch of %s" % (fetch_only,name))
               continue
-            self.fetch_soql_query(name, query)
+            #if name == 'contacts' or name == 'contact_updates':
+            if name == 'contacts':
+                self.fetch_soql_query_bulk(name, query)
+            else:
+                self.fetch_soql_query(name, query)
 
         reports = self.settings['salesforce']['reports']
         for name, report_url in reports.items():
@@ -147,6 +157,104 @@ class SalesforceFetcher(object):
                 f.seek(pos, os.SEEK_SET)
                 f.truncate()
 
+    def get_and_write_bulk_results(self, batch_id, result_id, job, f):
+        uri = urlparse.urljoin(
+            self.salesforce_bulk.endpoint + "/",
+            "job/{0}/batch/{1}/result/{2}".format(
+                job, batch_id, result_id),
+        )
+        resp = requests.get(uri, headers=self.salesforce_bulk.headers(), stream=True)
+
+        for chunk in resp.iter_content(chunk_size=8192):
+            if chunk:
+                f.write( chunk )
+
+    def fetch_soql_query_bulk(self, name, query):
+        self.logger.info("BULK Executing %s" % name)
+        self.logger.info("BULK Query is: %s" % query)
+        #path = self.create_output_path(name)
+        if name == 'contacts' or name == 'contact_updates':
+            table_name = 'Contact'
+        job = self.salesforce_bulk.create_query_job(table_name,
+                                                    contentType='CSV',
+                                                    pk_chunking=True,
+                                                    concurrency='Parallel')
+        print("job: %s" % job)
+        batch = self.salesforce_bulk.query(job, query)
+#        job = '7504O00000LUr1QQAT'
+#        batch = '7514O00000TvQZCQA3'
+        self.logger.info("Bulk batch created: %s" % batch)
+
+        while True:
+            batch_state = self.salesforce_bulk.batch_state(batch, job_id=job, reload=True).lower()
+            if batch_state == 'notprocessed':
+                self.logger.info("master batch is done")
+                break
+            elif batch_state == 'aborted' or batch_state == 'failed':
+                self.logger.error("master batch failed")
+                self.logger.error(self.salesforce_bulk.batch_status(batch_id=batch, job_id=job, reload=True))
+                raise Exception("master batch failed")
+            self.logger.info("waiting for batch to be done")
+            time.sleep(10)
+
+        count = 0
+        downloaded = {}
+
+        while True:
+            stats = {}
+            batch_count = 0
+            all_batches = self.salesforce_bulk.get_batch_list(job)
+            for batch_info in all_batches:
+                batch_count += 1
+
+                batch_state = batch_info['state'].lower()
+                if batch_state in stats:
+                    stats[batch_state] += 1
+                else:
+                    stats[batch_state] = 1
+
+                if batch_info['id'] == batch:
+                    self.logger.debug("skipping the master batch id")
+                    continue
+                elif batch_info['id'] in downloaded:
+                    self.logger.debug("batch %s already downloaded" % batch_info['id'])
+                    continue
+ 
+                if batch_state == 'completed':
+                    self.logger.debug("batch %s (%s of %s)" % (batch_info['id'],
+                                                               batch_count,
+                                                               len(all_batches)))
+    
+                    for result_id in self.salesforce_bulk.get_query_batch_result_ids(batch_info['id'], job_id=job):
+                        self.logger.debug("result_id: %s" % result_id)
+                        path = self.create_output_path(name, result_id)
+                        with open(path, 'wb') as f:
+                            self.get_and_write_bulk_results(batch_info['id'], result_id, job, f)
+
+                    downloaded[batch_info['id']] = 1
+
+                elif batch_state == 'failed':
+                    downloaded[batch_info['id']] = 1
+                    self.logger.error("batch %s failed!" % batch_info['id'])
+                    self.logger.error(self.salesforce_bulk.batch_status(batch_id=batch_info['id'], job_id=job, reload=True))
+            
+            if 'completed' in stats and stats['completed'] + 1 == batch_count:
+                self.logger.info("all batches retrieved")
+                break
+            elif 'failed' in stats and stats['failed'] + 1 == batch_count:
+                self.logger.error("NO batches retrieved")
+                self.logger.error(self.salesforce_bulk.batch_status(batch_id=batch, job_id=job, reload=True))
+                raise Exception("NO batches retrieved")
+            elif 'failed' in stats and stats['failed'] + stats['completed'] == batch_count:
+                self.logger.warning("all batches WITH SOME FAILURES")
+                break
+            else:
+                self.logger.info(stats)
+                time.sleep(2)
+
+        self.salesforce_bulk.close_job(job)
+
+
     def fetch_soql_query(self, name, query):
         self.logger.info("Executing %s" % name)
         self.logger.info("Query is: %s" % query)
@@ -187,14 +295,14 @@ class SalesforceFetcher(object):
         else:
             self.logger.warn("No results returned for %s" % name)
 
-    def create_output_path(self, name):
+    def create_output_path(self, name, filename='output'):
         output_dir = self.settings['output_dir']
         date = time.strftime("%Y-%m-%d")
         child_dir = os.path.join(output_dir, name, date)
         if not os.path.exists(child_dir):
             os.makedirs(child_dir)
 
-        filename = "output.csv"
+        filename = filename+".csv"
         file_path = os.path.join(child_dir, filename)
         self.logger.info("Writing output to %s" % file_path)
         return file_path
@@ -213,11 +321,11 @@ class SalesforceFetcher(object):
 
         query = "SELECT "
         for field in columns['fields']:
-            query += field + ', '
+            query += next(iter(field)) + ', '
 
         query = query[:-2] + " FROM " + table_name
         if updates_only:
-            query += " WHERE LastModifiedDate >= LAST_N_DAYS:1"
+            query += " WHERE LastModifiedDate >= LAST_N_DAYS:3"
   
         return query
 
@@ -230,21 +338,23 @@ class SalesforceFetcher(object):
 
         query_dir = self.settings['salesforce']['query_dir']
         for file in os.listdir(query_dir):
-            if file == 'contacts.soql':
-              queries['contacts'] = self.create_custom_query(table_name='Contact',
-                                                             dir=query_dir)
-            elif file == 'contact_updates.soql':
-              queries['contact_updates'] = self.create_custom_query(table_name='Contact',
-                                                                    dir=query_dir,
-                                                                    updates_only=True)
-            elif file == 'opportunity.soql':
-              queries['opportunity'] = self.create_custom_query(table_name='Opportunity',
-                                                                dir=query_dir)
-            elif file.endswith(".soql"):
+            if file.endswith(".soql"):
                 name, ext = os.path.splitext(file)
                 query_file = os.path.join(query_dir, file)
                 with open(query_file, 'r') as f:
                     queries[name] = f.read().strip().replace('\n', ' ')
+
+        # explicitly add the non-file queries
+        queries['contacts'] = self.create_custom_query(table_name='Contact',
+                                                       dir=query_dir)
+        queries['contact_updates'] = self.create_custom_query(table_name='Contact',
+                                                              dir=query_dir,
+                                                              updates_only=True)
+        queries['opportunity'] = self.create_custom_query(table_name='Opportunity',
+                                                          dir=query_dir)
+        queries['opportunity_updates'] = self.create_custom_query(table_name='Opportunity',
+                                                                  dir=query_dir,
+                                                                  updates_only=True)
 
         return queries
 
