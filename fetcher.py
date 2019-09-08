@@ -25,12 +25,13 @@ except ImportError:
               default="settings.yml", help="Path to a configuration YAML file")
 @click.option('--fetch-only', envvar='SFDC_FETCH_ONLY')
 @click.option('--airflow-date', envvar='SFDC_AIRFLOW_DATE')
-def run(config_file, fetch_only, airflow_date):
+@click.option('--fetch-method', envvar='SFDC_FETCH_METHOD')
+def run(config_file, fetch_only, airflow_date, fetch_method):
     """
     Main Entry Point for the utility, will provide a CLI friendly version of this application
     """
     fetcher = SalesforceFetcher(config_file)
-    fetcher.fetch_all(fetch_only, airflow_date)
+    fetcher.fetch_all(fetch_only, airflow_date, fetch_method)
 
 
 class SalesforceFetcher(object):
@@ -70,7 +71,7 @@ class SalesforceFetcher(object):
         if not os.path.exists(output_directory):
             os.makedirs(output_directory)
 
-    def fetch_all(self, fetch_only, airflow_date):
+    def fetch_all(self, fetch_only, airflow_date, fetch_method):
         """
         Fetch any reports or queries, writing them out as files in the output_dir
         """
@@ -79,8 +80,8 @@ class SalesforceFetcher(object):
             if fetch_only and name != fetch_only:
               self.logger.info("'--fetch-only %s' specified. Skipping fetch of %s" % (fetch_only,name))
               continue
-            #if name == 'contacts' or name == 'contact_updates':
-            if name == 'contacts':
+            #if name == 'contacts' or name == 'opportunity':
+            if fetch_method and fetch_method == 'bulk':
                 self.fetch_soql_query_bulk(name, query, airflow_date)
             else:
                 self.fetch_soql_query(name, query, airflow_date)
@@ -173,9 +174,10 @@ class SalesforceFetcher(object):
     def fetch_soql_query_bulk(self, name, query, airflow_date=None):
         self.logger.info("BULK Executing %s" % name)
         self.logger.info("BULK Query is: %s" % query)
-        #path = self.create_output_path(name, airflow_date=airflow_date)
         if name == 'contacts' or name == 'contact_updates':
             table_name = 'Contact'
+        elif name == 'opportunity' or name == 'opportunity_updates':
+            table_name = 'Opportunity'
         job = self.salesforce_bulk.create_query_job(table_name,
                                                     contentType='CSV',
                                                     pk_chunking=True,
