@@ -15,6 +15,8 @@ import yaml
 from simple_salesforce import Salesforce
 from salesforce_bulk import SalesforceBulk
 
+import multiprocessing as mp
+
 try:
     import urlparse
 except ImportError:
@@ -33,6 +35,19 @@ def run(config_file, fetch_only, airflow_date, fetch_method):
     fetcher = SalesforceFetcher(config_file)
     fetcher.fetch_all(fetch_only, airflow_date, fetch_method)
 
+
+def get_and_write_bulk_results(batch_id, result_id, job, endpoint, headers, path):
+    with open(path, 'wb') as f:
+        uri = urlparse.urljoin(
+            endpoint + "/",
+            "job/{0}/batch/{1}/result/{2}".format(
+                job, batch_id, result_id),
+        )
+        resp = requests.get(uri, headers=headers, stream=True)
+
+        for chunk in resp.iter_content(chunk_size=8192):
+            if chunk:
+                f.write( chunk )
 
 class SalesforceFetcher(object):
     """
@@ -159,18 +174,6 @@ class SalesforceFetcher(object):
                 f.seek(pos, os.SEEK_SET)
                 f.truncate()
 
-    def get_and_write_bulk_results(self, batch_id, result_id, job, f):
-        uri = urlparse.urljoin(
-            self.salesforce_bulk.endpoint + "/",
-            "job/{0}/batch/{1}/result/{2}".format(
-                job, batch_id, result_id),
-        )
-        resp = requests.get(uri, headers=self.salesforce_bulk.headers(), stream=True)
-
-        for chunk in resp.iter_content(chunk_size=8192):
-            if chunk:
-                f.write( chunk )
-
     def fetch_soql_query_bulk(self, name, query, airflow_date=None):
         self.logger.info("BULK Executing %s" % name)
         self.logger.info("BULK Query is: %s" % query)
@@ -182,10 +185,10 @@ class SalesforceFetcher(object):
                                                     contentType='CSV',
                                                     pk_chunking=True,
                                                     concurrency='Parallel')
-        print("job: %s" % job)
+        self.logger.info("job: %s" % job)
         batch = self.salesforce_bulk.query(job, query)
-#        job = '7504O00000LUr1QQAT'
-#        batch = '7514O00000TvQZCQA3'
+#        job = '7504O00000LUxuCQAT'
+#        batch = '7514O00000TvapeQAB'
         self.logger.info("Bulk batch created: %s" % batch)
 
         while True:
@@ -203,6 +206,8 @@ class SalesforceFetcher(object):
         count = 0
         downloaded = {}
 
+        pool = mp.Pool(5)
+
         while True:
             stats = {}
             batch_count = 0
@@ -217,10 +222,10 @@ class SalesforceFetcher(object):
                     stats[batch_state] = 1
 
                 if batch_info['id'] == batch:
-                    self.logger.debug("skipping the master batch id")
+                    #self.logger.debug("skipping the master batch id")
                     continue
                 elif batch_info['id'] in downloaded:
-                    self.logger.debug("batch %s already downloaded" % batch_info['id'])
+                    #self.logger.debug("batch %s already downloaded" % batch_info['id'])
                     continue
  
                 if batch_state == 'completed':
@@ -231,8 +236,14 @@ class SalesforceFetcher(object):
                     for result_id in self.salesforce_bulk.get_query_batch_result_ids(batch_info['id'], job_id=job):
                         self.logger.debug("result_id: %s" % result_id)
                         path = self.create_output_path(name, result_id, airflow_date=airflow_date)
-                        with open(path, 'wb') as f:
-                            self.get_and_write_bulk_results(batch_info['id'], result_id, job, f)
+                        pool.apply_async( get_and_write_bulk_results,
+                                          args=(batch_info['id'],
+                                                result_id,
+                                                job,
+                                                self.salesforce_bulk.endpoint,
+                                                self.salesforce_bulk.headers(),
+                                                path)
+                        )
 
                     downloaded[batch_info['id']] = 1
 
@@ -253,9 +264,14 @@ class SalesforceFetcher(object):
                 break
             else:
                 self.logger.info(stats)
-                time.sleep(2)
+                time.sleep(5)
 
-        self.salesforce_bulk.close_job(job)
+        try:
+            self.salesforce_bulk.close_job(job)
+        except:
+            pass
+        pool.close()
+        pool.join()
 
 
     def fetch_soql_query(self, name, query, airflow_date=None):
