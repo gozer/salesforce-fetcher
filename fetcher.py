@@ -93,7 +93,7 @@ class SalesforceFetcher(object):
         queries = self.load_queries()
         for name, query in queries.items():
             if fetch_only and name != fetch_only:
-              self.logger.info("'--fetch-only %s' specified. Skipping fetch of %s" % (fetch_only,name))
+              self.logger.debug("'--fetch-only %s' specified. Skipping fetch of %s" % (fetch_only,name))
               continue
             #if name == 'contacts' or name == 'opportunity':
             if fetch_method and fetch_method == 'bulk':
@@ -104,7 +104,7 @@ class SalesforceFetcher(object):
         reports = self.settings['salesforce']['reports']
         for name, report_url in reports.items():
             if fetch_only and name != fetch_only:
-              self.logger.info("'--fetch-only %s' specified. Skipping fetch of %s" % (fetch_only,name))
+              self.logger.debug("'--fetch-only %s' specified. Skipping fetch of %s" % (fetch_only,name))
               continue
             self.fetch_report(name, report_url, airflow_date)
 
