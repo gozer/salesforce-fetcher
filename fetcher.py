@@ -61,7 +61,7 @@ class SalesforceFetcher(object):
         """
         # Get settings
         with open(config_path, 'r') as f:
-            self.settings = yaml.load(f)
+            self.settings = yaml.safe_load(f)
 
         # Configure the logger
         log_level = (logging.WARN, logging.DEBUG)[self.settings['debug']]
