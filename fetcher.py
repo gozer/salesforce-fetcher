@@ -28,12 +28,13 @@ except ImportError:
 @click.option('--fetch-only', envvar='SFDC_FETCH_ONLY')
 @click.option('--airflow-date', envvar='SFDC_AIRFLOW_DATE')
 @click.option('--fetch-method', envvar='SFDC_FETCH_METHOD')
-def run(config_file, fetch_only, airflow_date, fetch_method):
+@click.option('--days-lookback', envvar='SFDC_DAYS_LOOKBACK')
+def run(config_file, fetch_only, airflow_date, fetch_method, days_lookback=29):
     """
     Main Entry Point for the utility, will provide a CLI friendly version of this application
     """
     fetcher = SalesforceFetcher(config_file)
-    fetcher.fetch_all(fetch_only, airflow_date, fetch_method)
+    fetcher.fetch_all(fetch_only, airflow_date, fetch_method, int(days_lookback))
 
 
 def get_and_write_bulk_results(batch_id, result_id, job, endpoint, headers, path):
@@ -86,7 +87,7 @@ class SalesforceFetcher(object):
         if not os.path.exists(output_directory):
             os.makedirs(output_directory)
 
-    def fetch_all(self, fetch_only, airflow_date, fetch_method):
+    def fetch_all(self, fetch_only, airflow_date, fetch_method, days_lookback):
         """
         Fetch any reports or queries, writing them out as files in the output_dir
         """
@@ -110,9 +111,9 @@ class SalesforceFetcher(object):
 
         if fetch_only:
             if fetch_only == 'contact_deletes':
-                self.fetch_contact_deletes(days=29, airflow_date=airflow_date)
+                self.fetch_contact_deletes(days=days_lookback, airflow_date=airflow_date)
         else:
-            self.fetch_contact_deletes(days=29, airflow_date=airflow_date)
+            self.fetch_contact_deletes(days=days_lookback, airflow_date=airflow_date)
 
         self.logger.info("Job Completed")
 
