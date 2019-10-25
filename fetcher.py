@@ -34,7 +34,12 @@ def run(config_file, fetch_only, airflow_date, fetch_method, days_lookback=29):
     Main Entry Point for the utility, will provide a CLI friendly version of this application
     """
     fetcher = SalesforceFetcher(config_file)
-    fetcher.fetch_all(fetch_only, airflow_date, fetch_method, int(days_lookback))
+    if days_lookback is None:
+        days_lookback_int = 29
+    else:
+        days_lookback_int = int(days_lookback)
+    logger.debug("Days Lookback: " + str(days_lookback_int))
+    fetcher.fetch_all(fetch_only, airflow_date, fetch_method, days_lookback_int)
 
 
 def get_and_write_bulk_results(batch_id, result_id, job, endpoint, headers, path):
