@@ -38,7 +38,7 @@ def run(config_file, fetch_only, airflow_date, fetch_method, days_lookback=29):
         days_lookback_int = 29
     else:
         days_lookback_int = int(days_lookback)
-    logger.debug("Days Lookback: " + str(days_lookback_int))
+    #logger.debug("Days Lookback: " + str(days_lookback_int))
     fetcher.fetch_all(fetch_only, airflow_date, fetch_method, days_lookback_int)
 
 
