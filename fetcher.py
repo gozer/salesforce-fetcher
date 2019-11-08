@@ -206,7 +206,7 @@ class SalesforceFetcher(object):
                 self.logger.error("master batch failed")
                 self.logger.error(self.salesforce_bulk.batch_status(batch_id=batch, job_id=job, reload=True))
                 raise Exception("master batch failed")
-            self.logger.info("waiting for batch to be done")
+            self.logger.info("waiting for batch to be done. status=%s" % batch_state)
             time.sleep(10)
 
         count = 0
